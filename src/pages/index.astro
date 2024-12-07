@@ -2,4 +2,191 @@
 import DefaultLayout from '../layouts/DefaultLayout.astro';
 ---
 
-<DefaultLayout title='Home' />
+<DefaultLayout title='Home'>
+	<div class='title'>AlexToonz</div>
+</DefaultLayout>
+
+<script>
+	//#region Erase Animation
+
+	const canvas = document.getElementById('overlay') as HTMLCanvasElement;
+	const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+
+	let currentSwipe = 0;
+	const numberOfSwipes = 7;
+
+	function fillBackground() {
+		ctx.fillStyle = 'red';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	}
+
+	const angle = (-40 * Math.PI) / 180;
+
+	let swipes: Swipe[] = [];
+
+	function resizeCanvas() {
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		fillBackground();
+		generateSwipes();
+		calculateLineWidth();
+	}
+	resizeCanvas();
+	window.addEventListener('resize', resizeCanvas);
+
+	function generateSwipes() {
+		swipes = [];
+		for (let i = 0; i < numberOfSwipes; i++) {
+			const startYRatio = i / numberOfSwipes;
+			const endYRatio = (i + 1) / numberOfSwipes;
+			const archHeightRatio = 0.1;
+			const alternate = i % 2 === 1;
+			swipes.push(createSwipe(startYRatio, endYRatio, archHeightRatio, angle, alternate));
+		}
+	}
+
+	function calculateLineWidth() {
+		const diagonal = Math.sqrt(canvas.width ** 2 + canvas.height ** 2);
+		ctx.lineWidth = diagonal / (numberOfSwipes * 0.5);
+	}
+
+	function createSwipe(startYRatio: number, endYRatio: number, archHeightRatio: number, rotationAngle: number, alternate: boolean) {
+		const width = canvas.width;
+		const height = canvas.height;
+
+		let startX = -width / 3;
+		let startY = height * startYRatio * 2.5 - height / 2.5;
+		let endX = width + width / 3;
+		let endY = height * endYRatio * 2.5 - height / 2.5;
+
+		if (alternate) {
+			[startX, endX] = [endX, startX];
+			[startY, endY] = [endY, startY];
+		}
+
+		const controlX1 = width * 0.33;
+		const controlY1 = startY - height * archHeightRatio;
+		const controlX2 = width * 0.66;
+		const controlY2 = endY - height * archHeightRatio;
+
+		const centerX = width / 2;
+		const centerY = height / 2;
+
+		function rotatePoint(x: number, y: number, angle: number) {
+			const dx = x - centerX;
+			const dy = y - centerY;
+			const distance = Math.hypot(dx, dy);
+			const originalAngle = Math.atan2(dy, dx);
+			const newAngle = originalAngle + angle;
+			return {
+				x: centerX + distance * Math.cos(newAngle),
+				y: centerY + distance * Math.sin(newAngle),
+			};
+		}
+
+		const start = rotatePoint(startX, startY, rotationAngle);
+		const end = rotatePoint(endX, endY, rotationAngle);
+		const control1 = rotatePoint(controlX1, controlY1, rotationAngle);
+		const control2 = rotatePoint(controlX2, controlY2, rotationAngle);
+
+		return {
+			startX: start.x,
+			startY: start.y,
+			controlX1: control1.x,
+			controlY1: control1.y,
+			controlX2: control2.x,
+			controlY2: control2.y,
+			endX: end.x,
+			endY: end.y,
+		};
+	}
+
+	function eraseSwipe(
+		swipe: { startX: number; startY: number; controlX1: any; controlY1: any; controlX2: any; controlY2: any; endX: any; endY: any },
+		callback: { (): void; (): void },
+	) {
+		let progress = 0;
+		const duration = 300;
+		const fps = 60;
+		const totalFrames = (duration / 1000) * fps;
+
+		ctx.globalCompositeOperation = 'destination-out';
+		ctx.lineCap = 'round';
+
+		function animate() {
+			progress++;
+			const t = progress / totalFrames;
+
+			const { x, y } = cubicBezierPoint(
+				swipe.startX,
+				swipe.startY,
+				swipe.controlX1,
+				swipe.controlY1,
+				swipe.controlX2,
+				swipe.controlY2,
+				swipe.endX,
+				swipe.endY,
+				t,
+			);
+
+			if (progress === 1) {
+				ctx.beginPath();
+				ctx.moveTo(swipe.startX, swipe.startY);
+			} else {
+				ctx.lineTo(x, y);
+				ctx.stroke();
+			}
+
+			if (progress < totalFrames) {
+				requestAnimationFrame(animate);
+			} else {
+				ctx.closePath();
+				if (callback) callback();
+			}
+		}
+		animate();
+	}
+
+	function cubicBezierPoint(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, t: number) {
+		const mt = 1 - t;
+		const mt2 = mt * mt;
+		const mt3 = mt2 * mt;
+		const t2 = t * t;
+		const t3 = t2 * t;
+
+		const x = mt3 * x0 + 3 * mt2 * t * x1 + 3 * mt * t2 * x2 + t3 * x3;
+		const y = mt3 * y0 + 3 * mt2 * t * y1 + 3 * mt * t2 * y2 + t3 * y3;
+
+		return { x, y };
+	}
+
+	function startErasing() {
+		if (currentSwipe < swipes.length) {
+			eraseSwipe(swipes[currentSwipe], () => {
+				currentSwipe++;
+				startErasing();
+			});
+		}
+	}
+
+	window.addEventListener('DOMContentLoaded', () => {
+		startErasing();
+	});
+
+	//#endregion
+</script>
+
+<style lang='scss'>
+	#overlay {
+		#overlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: transparent;
+			z-index: 2;
+			pointer-events: none;
+		}
+	}
+</style>

@@ -13,3 +13,14 @@ interface ImportMetaEnv {
 interface ImportMeta {
 	readonly env: ImportMetaEnv;
 }
+
+interface Swipe {
+	startX: number;
+	startY: number;
+	controlX1: number;
+	controlY1: number;
+	controlX2: number;
+	controlY2: number;
+	endX: number;
+	endY: number;
+}
